@@ -4,6 +4,7 @@ from flask.views import MethodView
 from ..spotify import spotify_client
 from ..state import TokenStorage, AuthState
 from ..exceptions import MissingRefreshTokenError, MissingTokenDataError
+from ..utils import get_user_id_from_session, set_target_endpoint
 
 
 class SpotifyView(MethodView):
@@ -28,7 +29,7 @@ class SpotifyView(MethodView):
 
         if auth_status == "none":
             # Case 1: No accessToken, redirect to login
-            session['target_endpoint'] = url_for('api.save_current_track')
+            set_target_endpoint(url_for('api.save_current_track'))
             return redirect(url_for('api.auth_login'))
         
         elif auth_status == "expired":
@@ -37,7 +38,7 @@ class SpotifyView(MethodView):
                 TokenStorage.refresh_access_token_data()
             except (MissingRefreshTokenError, MissingTokenDataError) as e:
                 # If no refresh token is available, redirect to login
-                session['target_endpoint'] = url_for('api.save_current_track')
+                set_target_endpoint(url_for('api.save_current_track'))
                 return redirect(url_for('api.auth_login'))
             
         return self._save_track_with_token()
@@ -45,7 +46,7 @@ class SpotifyView(MethodView):
     def _save_track_with_token(self):
         """Helper method to save the current track using a valid access token."""
         try:
-            user_id = self.get_user_id()
+            user_id = get_user_id_from_session()
             token_data = TokenStorage.get_user_token_data(user_id)
             if not user_id or not token_data:
                 raise Exception()
@@ -63,10 +64,6 @@ class SpotifyView(MethodView):
         except Exception as e:
             print(f"Failed to save track: {e}")
             return make_response("Failed to save track.", 500)
-        
-    def get_user_id(self):
-        # Extract user ID from the session
-        return session.get("user_id") or None
 
 def register_endpoints(api):
     # Register the AuthView and map different URL rules to the `get` method with different endpoints

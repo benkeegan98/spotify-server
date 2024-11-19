@@ -4,6 +4,7 @@ from flask.views import MethodView
 from ..spotify import sp_oauth, spotify_client
 from ..state import TokenStorage, AuthState 
 from ..exceptions import MissingRefreshTokenError, MissingTokenDataError
+from ..utils import get_user_id_from_session, set_user_id_in_session, get_target_endpoint
 
 
 class AuthView(MethodView):
@@ -19,7 +20,7 @@ class AuthView(MethodView):
 
     def login(self):
         """Login route."""
-        user_id = self.get_user_id()
+        user_id = get_user_id_from_session()
         auth_status = AuthState.get_auth_status(user_id)
         if auth_status == "none":
             return redirect(sp_oauth.get_authorize_url())
@@ -42,7 +43,7 @@ class AuthView(MethodView):
             user = spotify_client.me()
             user_id = user["id"]
             AuthState.set_current_authenticated_user_id(user_id)
-            session["user_id"] = user_id
+            set_user_id_in_session(user_id)
 
             token_data = sp_oauth.get_access_token(code, as_dict=True)
             TokenStorage.set_user_token_data(
@@ -55,7 +56,7 @@ class AuthView(MethodView):
             user_token_data = TokenStorage.get_user_token_data(user_id)
             if user_token_data:
                 # Check if there's a target endpoint stored and redirect there
-                target_endpoint = session.pop('target_endpoint', None)
+                target_endpoint = get_target_endpoint()
                 if target_endpoint:
                     return redirect(target_endpoint)
                 return redirect(url_for('api.auth_success'))
@@ -63,10 +64,6 @@ class AuthView(MethodView):
                 return make_response("Failed to retrieve tokens.", 400)
         else:
             return make_response("Authorization failed.", 400)
-        
-    def get_user_id(self):
-        # Extract user ID from the session
-        return session.get("user_id") or None
 
 
 def register_endpoints(api):
