@@ -1,34 +1,33 @@
-from flask import session, redirect, make_response, url_for, request
+from flask import redirect, make_response, url_for, request
 from flask.views import MethodView
 
 from ..spotify import sp_oauth, spotify_client
-from ..state import TokenStorage, AuthState 
-from ..exceptions import MissingRefreshTokenError, MissingTokenDataError
-from ..utils import get_user_id_from_session, set_user_id_in_session, get_target_endpoint
+from ..state import TokenStorage, Auth
+from ..exceptions import MissingRefreshTokenError, MissingTokenDataError, NoAuthenticatedUserError
+from ..utils import TargetEndpoint
 
 
 class AuthView(MethodView):
     def dispatch_request(self):
         """Dispatcher method that routes to specific methods based on endpoint."""
-        if request.path == "/auth/success":
-            return self.success()
-        elif request.path == "/auth/redirect":
-            return self.redirect_callback()
-        else:
-            return self.login()
-        
+        match request.path:
+            case "/auth/success":
+                return self.success()
+            case "/auth/redirect":
+                return self.redirect_callback()
+            case _:
+                return self.login()  
 
     def login(self):
         """Login route."""
-        user_id = get_user_id_from_session()
-        auth_status = AuthState.get_auth_status(user_id)
-        if auth_status == "none":
-            return redirect(sp_oauth.get_authorize_url())
-        if auth_status == "expired":
-            try:
-                TokenStorage.refresh_access_token_data()
-            except (MissingRefreshTokenError, MissingTokenDataError):
+        match Auth.get_status():
+            case "none":
                 return redirect(sp_oauth.get_authorize_url())
+            case "expired":
+                try:
+                    TokenStorage.refresh_access_token_data()
+                except (MissingRefreshTokenError, MissingTokenDataError, NoAuthenticatedUserError):
+                    return redirect(sp_oauth.get_authorize_url())
             
         return self.success()
 
@@ -39,31 +38,29 @@ class AuthView(MethodView):
     def redirect_callback(self):
         """Callback route for Spotify authentication."""
         code = request.args.get('code')
-        if code:
-            user = spotify_client.me()
-            user_id = user["id"]
-            AuthState.set_current_authenticated_user_id(user_id)
-            set_user_id_in_session(user_id)
-
-            token_data = sp_oauth.get_access_token(code, as_dict=True)
-            TokenStorage.set_user_token_data(
-                user_id,
-                access_token=token_data["access_token"],
-                refresh_token=token_data["refresh_token"],
-                expires_at=token_data["expires_at"]
-            )
-            
-            user_token_data = TokenStorage.get_user_token_data(user_id)
-            if user_token_data:
-                # Check if there's a target endpoint stored and redirect there
-                target_endpoint = get_target_endpoint()
-                if target_endpoint:
-                    return redirect(target_endpoint)
-                return redirect(url_for('api.auth_success'))
-            else:
-                return make_response("Failed to retrieve tokens.", 400)
-        else:
+        if not code:
             return make_response("Authorization failed.", 400)
+        
+        user = spotify_client.me()
+        Auth.set_user_id(user["id"])
+
+        token_data = sp_oauth.get_access_token(code, as_dict=True)
+        TokenStorage.set_user_token_data(
+            access_token=token_data["access_token"],
+            refresh_token=token_data["refresh_token"],
+            expires_at=token_data["expires_at"]
+        )
+        
+        user_token_data = TokenStorage.get_user_token_data()
+        if not user_token_data:
+            return make_response("Failed to retrieve tokens from TokenStorage.", 400)
+
+        # Check if there's a target endpoint stored and redirect there
+        if TargetEndpoint.present():
+            return TargetEndpoint.redirect()
+        return redirect(url_for('api.auth_success'))
+            
+            
 
 
 def register_endpoints(api):

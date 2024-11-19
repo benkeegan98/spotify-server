@@ -1,1 +1,3 @@
-from .session_utils import *
+from .target_endpoint import TargetEndpoint
+
+__all__ = ["TargetEndpoint"]

@@ -1,4 +1,4 @@
-from .auth_state import AuthState
+from .auth import Auth
 from .token_storage import TokenStorage
 
-__all__ = ["AuthState", "TokenStorage"]
+__all__ = ["Auth", "TokenStorage"]
