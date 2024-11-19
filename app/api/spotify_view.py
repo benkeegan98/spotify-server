@@ -1,7 +1,7 @@
 from flask import session, redirect, make_response, url_for, request
 from flask.views import MethodView
 
-from ..spotify import spotify_client
+from ..spotify import SpotifyClient
 from ..state import TokenStorage, Auth
 from ..exceptions import MissingRefreshTokenError, MissingTokenDataError, NoAuthenticatedUserError
 from ..utils import TargetEndpoint
@@ -19,7 +19,7 @@ class SpotifyView(MethodView):
                 return make_response("Endpoint not implemented", 404)
         
     def show_current_track(self):
-        current_track = spotify_client.current_user_playing_track()
+        current_track = SpotifyClient.get().current_user_playing_track()
         return make_response(current_track)
     
     def save_current_track(self):
@@ -48,14 +48,14 @@ class SpotifyView(MethodView):
             if not token_data:
                 raise MissingTokenDataError()
             
-            spotify_client.auth = token_data['access_token']
-            current_track_data = spotify_client.current_user_playing_track()
+            SpotifyClient.get().auth = token_data['access_token']
+            current_track_data = SpotifyClient.get().current_user_playing_track()
 
             if not current_track_data:
                 return make_response("No track is currently playing.", 404)
 
             track_id = current_track_data["item"]["id"]
-            spotify_client.current_user_saved_tracks_add([track_id])
+            SpotifyClient.get().current_user_saved_tracks_add([track_id])
             return make_response("Track saved successfully.", 200)
         
         except MissingTokenDataError:

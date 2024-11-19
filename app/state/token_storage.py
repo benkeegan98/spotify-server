@@ -1,4 +1,4 @@
-from ..spotify import sp_oauth
+from ..spotify import SpotifyClient
 from ..exceptions import MissingRefreshTokenError, MissingTokenDataError, NoAuthenticatedUserError
 
 class TokenStorage:
@@ -52,7 +52,7 @@ class TokenStorage:
         if 'refresh_token' not in token_data:
             raise MissingRefreshTokenError()
 
-        new_token_data = sp_oauth.refresh_access_token(token_data['refresh_token'])
+        new_token_data = SpotifyClient.oauth().refresh_access_token(token_data['refresh_token'])
 
         cls.set_user_token_data(
             access_token=new_token_data["access_token"],
