@@ -3,16 +3,11 @@ from spotipy.oauth2 import SpotifyOAuth
 
 from ..config import Config
 
-
-
-spotify_client = spotipy.Spotify(auth_manager=sp_oauth)
-
 class SpotifyClient:
     
     @classmethod
     def get(self):
-        oauth = self.oauth()
-        return spotipy.Spotify(auth_manager=oauth)
+        return spotipy.Spotify(auth_manager=self.oauth())
 
     @classmethod
     def oauth(self):
