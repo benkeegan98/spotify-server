@@ -39,6 +39,7 @@ class AuthView(MethodView):
 
     def redirect_callback(self):
         """Callback route for Spotify authentication."""
+        logging.info(f"Redirect callback called: {request}")
         code = request.args.get('code')
         if not code:
             return make_response("Authorization failed.", 400)
